@@ -1,0 +1,25 @@
+package com.example.threadedchatservice.entity
+
+import jakarta.persistence.*
+import java.time.LocalDateTime
+
+@Entity
+@Table(name = "chats")
+class ChatEntity(
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    val id: Long = 0,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "thread_id", nullable = false)
+    val thread: ThreadEntity,
+
+    @Column(columnDefinition = "TEXT", nullable = false)
+    val question: String,
+
+    @Column(columnDefinition = "TEXT", nullable = false)
+    val answer: String,
+
+    val createdAt: LocalDateTime = LocalDateTime.now(),
+)
