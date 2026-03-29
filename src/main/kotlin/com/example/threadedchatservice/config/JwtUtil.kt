@@ -41,6 +41,6 @@ class JwtUtil(
 
     fun getRole(token: String): String {
         val claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).payload
-        return claims["role"] as String
+        return claims["role"] as? String ?: "MEMBER"
     }
 }

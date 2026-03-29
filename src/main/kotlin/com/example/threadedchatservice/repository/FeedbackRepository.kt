@@ -16,4 +16,6 @@ interface FeedbackRepository : JpaRepository<FeedbackEntity, Long> {
     fun findByUserIdAndIsPositive(userId: Long, isPositive: Boolean, pageable: Pageable): Page<FeedbackEntity>
 
     fun existsByUserIdAndChatId(userId: Long, chatId: Long): Boolean
+
+    fun deleteByChatIdIn(chatIds: List<Long>)
 }

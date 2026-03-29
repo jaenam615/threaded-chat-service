@@ -3,6 +3,7 @@ package com.example.threadedchatservice.service.feedback
 import com.example.threadedchatservice.dto.request.FeedbackCreateRequest
 import com.example.threadedchatservice.dto.response.FeedbackResponse
 import com.example.threadedchatservice.entity.FeedbackEntity
+import com.example.threadedchatservice.entity.FeedbackStatus
 import com.example.threadedchatservice.entity.Role
 import com.example.threadedchatservice.repository.ChatRepository
 import com.example.threadedchatservice.repository.FeedbackRepository
@@ -81,11 +82,14 @@ class FeedbackService(
                 .findById(feedbackId)
                 .orElseThrow { IllegalArgumentException("Feedback not found") }
 
-        if (status !in listOf("pending", "resolved")) {
-            throw IllegalArgumentException("Invalid status: $status")
-        }
+        val feedbackStatus =
+            try {
+                FeedbackStatus.valueOf(status.uppercase())
+            } catch (e: IllegalArgumentException) {
+                throw IllegalArgumentException("Invalid status: $status. Must be one of: ${FeedbackStatus.entries.joinToString()}")
+            }
 
-        feedback.status = status
+        feedback.status = feedbackStatus
         return toResponse(feedbackRepository.save(feedback))
     }
 
@@ -95,7 +99,7 @@ class FeedbackService(
             userId = feedback.user.id,
             chatId = feedback.chat.id,
             isPositive = feedback.isPositive,
-            status = feedback.status,
+            status = feedback.status.name.lowercase(),
             createdAt = feedback.createdAt,
         )
 }

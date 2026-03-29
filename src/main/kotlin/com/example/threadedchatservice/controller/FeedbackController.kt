@@ -62,6 +62,6 @@ class FeedbackController(
     @PreAuthorize("hasRole('ADMIN')")
     fun updateStatus(
         @PathVariable feedbackId: Long,
-        @RequestBody request: FeedbackStatusRequest,
+        @Valid @RequestBody request: FeedbackStatusRequest,
     ): FeedbackResponse = feedbackService.updateStatus(feedbackId, request.status)
 }

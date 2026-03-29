@@ -31,4 +31,7 @@ interface ChatRepository : JpaRepository<ChatEntity, Long> {
 
     @Query("SELECT COUNT(c) FROM ChatEntity c WHERE c.createdAt >= :since")
     fun countSince(since: LocalDateTime): Long
+
+    @Query("SELECT c FROM ChatEntity c JOIN FETCH c.thread t JOIN FETCH t.user WHERE c.createdAt >= :since ORDER BY c.createdAt ASC")
+    fun findAllSince(since: LocalDateTime): List<ChatEntity>
 }

@@ -6,6 +6,7 @@ import com.example.threadedchatservice.dto.response.AuthResponse
 import com.example.threadedchatservice.service.auth.AuthService
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -22,6 +23,13 @@ class AuthController(
     fun signup(
         @Valid @RequestBody request: SignupRequest,
     ): AuthResponse = authService.signup(request)
+
+    @PostMapping("/admin")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('ADMIN')")
+    fun createAdmin(
+        @Valid @RequestBody request: SignupRequest,
+    ): AuthResponse = authService.createAdmin(request)
 
     @PostMapping("/login")
     fun login(

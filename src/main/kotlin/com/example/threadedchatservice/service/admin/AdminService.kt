@@ -2,6 +2,7 @@ package com.example.threadedchatservice.service.admin
 
 import com.example.threadedchatservice.dto.response.ActivityResponse
 import com.example.threadedchatservice.repository.ChatRepository
+import com.example.threadedchatservice.repository.LoginLogRepository
 import com.example.threadedchatservice.repository.UserRepository
 import org.springframework.stereotype.Service
 import java.time.LocalDateTime
@@ -10,6 +11,7 @@ import java.time.LocalDateTime
 class AdminService(
     private val userRepository: UserRepository,
     private val chatRepository: ChatRepository,
+    private val loginLogRepository: LoginLogRepository,
 ) {
 
     fun getActivity(): ActivityResponse {
@@ -18,8 +20,7 @@ class AdminService(
         // 24시간 내 가입자 수
         val signupCount = userRepository.countByCreatedAtAfter(since)
 
-        // 로그인 수는 별도 로깅 필요 - 간단히 0으로 처리 (또는 추후 구현)
-        val loginCount = 0L
+        val loginCount = loginLogRepository.countByCreatedAtAfter(since)
 
         // 24시간 내 채팅 수
         val chatCount = chatRepository.countSince(since)
@@ -37,8 +38,7 @@ class AdminService(
         val sb = StringBuilder()
         sb.appendLine("user_id,user_email,user_name,chat_id,question,answer,created_at")
 
-        val chats = chatRepository.findAll()
-            .filter { it.createdAt.isAfter(since) }
+        val chats = chatRepository.findAllSince(since)
 
         chats.forEach { chat ->
             val user = chat.thread.user

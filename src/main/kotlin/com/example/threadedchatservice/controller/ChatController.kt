@@ -1,7 +1,7 @@
 package com.example.threadedchatservice.controller
 
 import com.example.threadedchatservice.dto.request.ChatCreateRequest
-import com.example.threadedchatservice.dto.response.ChatResponse
+import com.example.threadedchatservice.dto.response.ChatResult
 import com.example.threadedchatservice.dto.response.ThreadWithChatsResponse
 import com.example.threadedchatservice.service.chat.ChatService
 import jakarta.validation.Valid
@@ -10,12 +10,13 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
 import org.springframework.data.web.PageableDefault
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
@@ -24,13 +25,18 @@ class ChatController(
     private val chatService: ChatService,
 ) {
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
     fun createChat(
         authentication: Authentication,
         @Valid @RequestBody request: ChatCreateRequest,
-    ): ChatResponse {
+    ): ResponseEntity<*> {
         val userId = authentication.principal as Long
-        return chatService.createChat(userId, request)
+
+        return when (val result = chatService.createChat(userId, request)) {
+            is ChatResult.Complete -> ResponseEntity.status(HttpStatus.CREATED).body(result.response)
+            is ChatResult.Stream -> ResponseEntity.ok()
+                .contentType(MediaType.TEXT_EVENT_STREAM)
+                .body(result.chunks)
+        }
     }
 
     @GetMapping

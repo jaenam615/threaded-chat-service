@@ -3,10 +3,12 @@ package com.example.threadedchatservice.service.chat
 import com.example.threadedchatservice.client.ClaudeClient
 import com.example.threadedchatservice.dto.request.ChatCreateRequest
 import com.example.threadedchatservice.dto.response.ChatResponse
+import com.example.threadedchatservice.dto.response.ChatResult
 import com.example.threadedchatservice.dto.response.ThreadWithChatsResponse
 import com.example.threadedchatservice.entity.ChatEntity
 import com.example.threadedchatservice.entity.Role
 import com.example.threadedchatservice.entity.ThreadEntity
+import com.example.threadedchatservice.entity.UserEntity
 import com.example.threadedchatservice.repository.ChatRepository
 import com.example.threadedchatservice.repository.ThreadRepository
 import com.example.threadedchatservice.repository.UserRepository
@@ -27,11 +29,40 @@ class ChatService(
         private const val THREAD_TIMEOUT_MINUTES = 30L
     }
 
-    @Transactional
     fun createChat(
         userId: Long,
         request: ChatCreateRequest,
-    ): ChatResponse {
+    ): ChatResult {
+        val prepared = prepareChat(userId, request)
+
+        if (request.isStreaming) {
+            val answerBuilder = StringBuilder()
+
+            val chunks = claudeClient.callStream(prepared.messages, request.model)
+                .doOnNext { chunk -> answerBuilder.append(chunk) }
+                .doOnComplete {
+                    saveChat(prepared.thread, request.question, answerBuilder.toString())
+                }
+
+            return ChatResult.Stream(chunks)
+        }
+
+        val answer = claudeClient.call(prepared.messages, request.model)
+        val chat = saveChat(prepared.thread, request.question, answer)
+
+        return ChatResult.Complete(
+            ChatResponse(
+                id = chat.id,
+                threadId = prepared.thread.id,
+                question = chat.question,
+                answer = chat.answer,
+                createdAt = chat.createdAt,
+            ),
+        )
+    }
+
+    @Transactional
+    fun prepareChat(userId: Long, request: ChatCreateRequest): PreparedChat {
         val user =
             userRepository
                 .findById(userId)
@@ -49,29 +80,23 @@ class ChatService(
                 )
             } + mapOf("role" to "user", "content" to request.question)
 
-        val answer = claudeClient.call(messages)
+        return PreparedChat(thread = thread, messages = messages)
+    }
 
-        val chat =
-            chatRepository.save(
-                ChatEntity(
-                    thread = thread,
-                    question = request.question,
-                    answer = answer,
-                ),
-            )
-
-        return ChatResponse(
-            id = chat.id,
-            threadId = thread.id,
-            question = chat.question,
-            answer = chat.answer,
-            createdAt = chat.createdAt,
+    @Transactional
+    fun saveChat(thread: ThreadEntity, question: String, answer: String): ChatEntity {
+        return chatRepository.save(
+            ChatEntity(
+                thread = thread,
+                question = question,
+                answer = answer,
+            ),
         )
     }
 
     private fun getOrCreateThread(
         userId: Long,
-        user: com.example.threadedchatservice.entity.UserEntity,
+        user: UserEntity,
     ): ThreadEntity {
         val latestThread = threadRepository.findLatestByUserId(userId)
 
@@ -129,4 +154,9 @@ class ChatService(
             )
         }
     }
+
+    data class PreparedChat(
+        val thread: ThreadEntity,
+        val messages: List<Map<String, String>>,
+    )
 }

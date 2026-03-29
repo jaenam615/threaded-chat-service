@@ -26,6 +26,13 @@ class GlobalExceptionHandler {
             .body(ErrorResponse(message))
     }
 
+    @ExceptionHandler(IllegalStateException::class)
+    fun handleIllegalState(e: IllegalStateException): ResponseEntity<ErrorResponse> {
+        return ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .body(ErrorResponse(e.message ?: "Service unavailable"))
+    }
+
     @ExceptionHandler(WebClientResponseException::class)
     fun handleWebClientError(e: WebClientResponseException): ResponseEntity<ErrorResponse> {
         return ResponseEntity
