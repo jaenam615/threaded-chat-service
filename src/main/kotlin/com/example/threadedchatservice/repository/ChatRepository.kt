@@ -13,6 +13,11 @@ interface ChatRepository : JpaRepository<ChatEntity, Long> {
 
     fun findByThreadId(threadId: Long): List<ChatEntity>
 
+    fun findByThreadIdOrderByCreatedAtAsc(threadId: Long): List<ChatEntity>
+
+    @Query("SELECT c FROM ChatEntity c WHERE c.thread.id IN :threadIds ORDER BY c.createdAt ASC")
+    fun findByThreadIdInOrderByCreatedAtAsc(threadIds: List<Long>): List<ChatEntity>
+
     @Query("SELECT c FROM ChatEntity c WHERE c.thread.user.id = :userId")
     fun findByUserId(userId: Long, pageable: Pageable): Page<ChatEntity>
 

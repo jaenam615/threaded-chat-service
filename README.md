@@ -252,7 +252,7 @@ GET /api/feedbacks?isPositive=true&page=0&size=20
 ## 8. 프로젝트 구조
 
 ```
-src/main/kotlin/com/example/assignment/
+src/main/kotlin/com/example/threadedchatservice/
 ├── config/
 │   ├── GlobalExceptionHandler.kt
 │   ├── JwtFilter.kt

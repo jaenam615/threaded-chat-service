@@ -15,47 +15,48 @@ class AuthService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtUtil: JwtUtil,
 ) {
-
     fun signup(request: SignupRequest): AuthResponse {
         if (userRepository.existsByEmail(request.email)) {
             throw IllegalArgumentException("Email already exists")
         }
 
-        val user = userRepository.save(
-            UserEntity(
-                email = request.email,
-                password = passwordEncoder.encode(request.password),
-                name = request.name,
+        val user =
+            userRepository.save(
+                UserEntity(
+                    email = request.email,
+                    password = passwordEncoder.encode(request.password),
+                    name = request.name,
+                ),
             )
-        )
 
-        val token = jwtUtil.generateToken(user.id, user.email, user.role)
+        val token = jwtUtil.generateToken(user.id, user.email, user.role.name)
 
         return AuthResponse(
             token = token,
             userId = user.id,
             email = user.email,
             name = user.name,
-            role = user.role,
+            role = user.role.name,
         )
     }
 
     fun login(request: LoginRequest): AuthResponse {
-        val user = userRepository.findByEmail(request.email)
-            ?: throw IllegalArgumentException("Invalid email or password")
+        val user =
+            userRepository.findByEmail(request.email)
+                ?: throw IllegalArgumentException("Invalid email or password")
 
         if (!passwordEncoder.matches(request.password, user.password)) {
             throw IllegalArgumentException("Invalid email or password")
         }
 
-        val token = jwtUtil.generateToken(user.id, user.email, user.role)
+        val token = jwtUtil.generateToken(user.id, user.email, user.role.name)
 
         return AuthResponse(
             token = token,
             userId = user.id,
             email = user.email,
             name = user.name,
-            role = user.role,
+            role = user.role.name,
         )
     }
 }

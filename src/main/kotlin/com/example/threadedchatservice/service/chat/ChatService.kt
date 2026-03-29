@@ -1,9 +1,11 @@
 package com.example.threadedchatservice.service.chat
 
-import com.example.threadedchatservice.client.LlmClient
+import com.example.threadedchatservice.client.ClaudeClient
 import com.example.threadedchatservice.dto.request.ChatCreateRequest
 import com.example.threadedchatservice.dto.response.ChatResponse
+import com.example.threadedchatservice.dto.response.ThreadWithChatsResponse
 import com.example.threadedchatservice.entity.ChatEntity
+import com.example.threadedchatservice.entity.Role
 import com.example.threadedchatservice.entity.ThreadEntity
 import com.example.threadedchatservice.repository.ChatRepository
 import com.example.threadedchatservice.repository.ThreadRepository
@@ -19,31 +21,44 @@ class ChatService(
     private val chatRepository: ChatRepository,
     private val threadRepository: ThreadRepository,
     private val userRepository: UserRepository,
-    private val llmClient: LlmClient,
+    private val claudeClient: ClaudeClient,
 ) {
     companion object {
         private const val THREAD_TIMEOUT_MINUTES = 30L
     }
 
     @Transactional
-    fun createChat(userId: Long, request: ChatCreateRequest): ChatResponse {
-        val user = userRepository.findById(userId)
-            .orElseThrow { IllegalArgumentException("User not found") }
+    fun createChat(
+        userId: Long,
+        request: ChatCreateRequest,
+    ): ChatResponse {
+        val user =
+            userRepository
+                .findById(userId)
+                .orElseThrow { IllegalArgumentException("User not found") }
 
-        // 30분 규칙: 스레드 결정
         val thread = getOrCreateThread(userId, user)
 
-        // LLM 호출
-        val answer = llmClient.call(request.question)
+        val previousChats = chatRepository.findByThreadIdOrderByCreatedAtAsc(thread.id)
 
-        // Chat 저장
-        val chat = chatRepository.save(
-            ChatEntity(
-                thread = thread,
-                question = request.question,
-                answer = answer,
+        val messages =
+            previousChats.flatMap { chat ->
+                listOf(
+                    mapOf("role" to "user", "content" to chat.question),
+                    mapOf("role" to "assistant", "content" to chat.answer),
+                )
+            } + mapOf("role" to "user", "content" to request.question)
+
+        val answer = claudeClient.call(messages)
+
+        val chat =
+            chatRepository.save(
+                ChatEntity(
+                    thread = thread,
+                    question = request.question,
+                    answer = answer,
+                ),
             )
-        )
 
         return ChatResponse(
             id = chat.id,
@@ -54,45 +69,63 @@ class ChatService(
         )
     }
 
-    private fun getOrCreateThread(userId: Long, user: com.example.threadedchatservice.entity.UserEntity): ThreadEntity {
+    private fun getOrCreateThread(
+        userId: Long,
+        user: com.example.threadedchatservice.entity.UserEntity,
+    ): ThreadEntity {
         val latestThread = threadRepository.findLatestByUserId(userId)
 
         if (latestThread != null) {
             val latestChat = chatRepository.findLatestByThreadId(latestThread.id)
 
             if (latestChat != null) {
-                val timeSinceLastChat = java.time.Duration.between(
-                    latestChat.createdAt,
-                    LocalDateTime.now()
-                ).toMinutes()
+                val timeSinceLastChat =
+                    java.time.Duration
+                        .between(
+                            latestChat.createdAt,
+                            LocalDateTime.now(),
+                        ).toMinutes()
 
                 if (timeSinceLastChat < THREAD_TIMEOUT_MINUTES) {
                     return latestThread
                 }
             } else {
-                // 스레드는 있지만 채팅이 없으면 기존 스레드 사용
                 return latestThread
             }
         }
 
-        // 새 스레드 생성
         return threadRepository.save(ThreadEntity(user = user))
     }
 
-    fun getChats(userId: Long, role: String, pageable: Pageable): Page<ChatResponse> {
-        val chats = if (role == "admin") {
-            chatRepository.findAll(pageable)
-        } else {
-            chatRepository.findByUserId(userId, pageable)
-        }
+    fun getChats(
+        userId: Long,
+        role: String,
+        pageable: Pageable,
+    ): Page<ThreadWithChatsResponse> {
+        val threads =
+            if (role == Role.ADMIN.name) {
+                threadRepository.findAll(pageable)
+            } else {
+                threadRepository.findByUserId(userId, pageable)
+            }
 
-        return chats.map { chat ->
-            ChatResponse(
-                id = chat.id,
-                threadId = chat.thread.id,
-                question = chat.question,
-                answer = chat.answer,
-                createdAt = chat.createdAt,
+        val threadIds = threads.content.map { it.id }
+        val allChats = chatRepository.findByThreadIdInOrderByCreatedAtAsc(threadIds)
+        val chatsByThreadId = allChats.groupBy { it.thread.id }
+
+        return threads.map { thread ->
+            ThreadWithChatsResponse(
+                threadId = thread.id,
+                createdAt = thread.createdAt,
+                chats = (chatsByThreadId[thread.id] ?: emptyList()).map { chat ->
+                    ChatResponse(
+                        id = chat.id,
+                        threadId = thread.id,
+                        question = chat.question,
+                        answer = chat.answer,
+                        createdAt = chat.createdAt,
+                    )
+                },
             )
         }
     }

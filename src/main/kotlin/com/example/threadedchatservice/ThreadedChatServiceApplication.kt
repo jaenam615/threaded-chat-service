@@ -7,5 +7,5 @@ import org.springframework.boot.runApplication
 class ThreadedChatServiceApplication
 
 fun main(args: Array<String>) {
-	runApplication<ThreadedChatServiceApplication>(*args)
+    runApplication<ThreadedChatServiceApplication>(*args)
 }

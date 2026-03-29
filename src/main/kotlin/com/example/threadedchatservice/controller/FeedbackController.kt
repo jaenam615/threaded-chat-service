@@ -12,14 +12,21 @@ import org.springframework.data.web.PageableDefault
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.core.Authentication
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.ResponseStatus
+import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/api/feedbacks")
 class FeedbackController(
     private val feedbackService: FeedbackService,
 ) {
-
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createFeedback(
@@ -27,7 +34,11 @@ class FeedbackController(
         @Valid @RequestBody request: FeedbackCreateRequest,
     ): FeedbackResponse {
         val userId = authentication.principal as Long
-        val role = authentication.authorities.first().authority.removePrefix("ROLE_").lowercase()
+        val role =
+            authentication.authorities
+                .first()
+                .authority
+                .removePrefix("ROLE_")
         return feedbackService.createFeedback(userId, role, request)
     }
 
@@ -39,7 +50,11 @@ class FeedbackController(
         pageable: Pageable,
     ): Page<FeedbackResponse> {
         val userId = authentication.principal as Long
-        val role = authentication.authorities.first().authority.removePrefix("ROLE_").lowercase()
+        val role =
+            authentication.authorities
+                .first()
+                .authority
+                .removePrefix("ROLE_")
         return feedbackService.getFeedbacks(userId, role, isPositive, pageable)
     }
 
@@ -48,7 +63,5 @@ class FeedbackController(
     fun updateStatus(
         @PathVariable feedbackId: Long,
         @RequestBody request: FeedbackStatusRequest,
-    ): FeedbackResponse {
-        return feedbackService.updateStatus(feedbackId, request.status)
-    }
+    ): FeedbackResponse = feedbackService.updateStatus(feedbackId, request.status)
 }

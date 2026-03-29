@@ -13,33 +13,35 @@ class ClaudeClient(
     private val webClient: WebClient,
     @Value("\${anthropic.api-key}") private val apiKey: String,
 ) : LlmClient {
-
-    override fun call(prompt: String): String {
-        return call(listOf(mapOf("role" to "user", "content" to prompt)))
-    }
+    override fun call(prompt: String): String = call(listOf(mapOf("role" to "user", "content" to prompt)))
 
     fun call(messages: List<Map<String, String>>): String {
-        val requestBody = mapOf(
-            "model" to "claude-sonnet-4-20250514",
-            "max_tokens" to 1024,
-            "messages" to messages
-        )
-
-        val response = webClient.post()
-            .uri("https://api.anthropic.com/v1/messages")
-            .contentType(MediaType.APPLICATION_JSON)
-            .header("x-api-key", apiKey)
-            .header("anthropic-version", "2023-06-01")
-            .bodyValue(requestBody)
-            .retrieve()
-            .bodyToMono(Map::class.java)
-            .timeout(Duration.ofSeconds(30))
-            .retryWhen(
-                Retry.backoff(3, Duration.ofMillis(500))
-                    .filter { it is WebClientResponseException.ServiceUnavailable ||
-                              it is WebClientResponseException.TooManyRequests }
+        val requestBody =
+            mapOf(
+                "model" to "claude-sonnet-4-20250514",
+                "max_tokens" to 1024,
+                "messages" to messages,
             )
-            .block()
+
+        val response =
+            webClient
+                .post()
+                .uri("https://api.anthropic.com/v1/messages")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("x-api-key", apiKey)
+                .header("anthropic-version", "2023-06-01")
+                .bodyValue(requestBody)
+                .retrieve()
+                .bodyToMono(Map::class.java)
+                .timeout(Duration.ofSeconds(30))
+                .retryWhen(
+                    Retry
+                        .backoff(3, Duration.ofMillis(500))
+                        .filter {
+                            it is WebClientResponseException.ServiceUnavailable ||
+                                it is WebClientResponseException.TooManyRequests
+                        },
+                ).block()
 
         return extractText(response)
     }
