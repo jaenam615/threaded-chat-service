@@ -11,6 +11,7 @@ import com.example.threadedchatservice.repository.ThreadRepository
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
+import reactor.core.scheduler.Schedulers
 
 @Service
 class ChatService(
@@ -31,7 +32,9 @@ class ChatService(
             val chunks = claudeClient.callStream(prepared.messages, request.model)
                 .doOnNext { chunk -> answerBuilder.append(chunk) }
                 .doOnComplete {
-                    chatPersistenceService.saveChat(prepared.thread, request.question, answerBuilder.toString())
+                    reactor.core.publisher.Mono.fromCallable {
+                        chatPersistenceService.saveChat(prepared.thread, request.question, answerBuilder.toString())
+                    }.subscribeOn(Schedulers.boundedElastic()).subscribe()
                 }
 
             return ChatResult.Stream(chunks)
