@@ -1,6 +1,6 @@
 package com.example.threadedchatservice.dto.response
 
-import java.time.LocalDateTime
+import java.time.OffsetDateTime
 
 data class FeedbackResponse(
     val id: Long,
@@ -8,5 +8,5 @@ data class FeedbackResponse(
     val chatId: Long,
     val isPositive: Boolean,
     val status: String,
-    val createdAt: LocalDateTime,
+    val createdAt: OffsetDateTime,
 )

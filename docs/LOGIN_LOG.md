@@ -2,13 +2,15 @@
 
 ## 배경
 
-사용자 활동 기록 API에서 24시간 내 로그인 횟수를 응답해야 한다. 로그인 이벤트를 어디에 저장할지 결정이 필요했다.
+사용자 활동 기록 API에서 24시간 내 로그인 횟수 반환 필요
+- 로그인 이벤트 저장 위치 선택
 
 ## 선택지
 
 ### 1. Redis 카운터 (`INCR login:count:{date}`)
 - 장점: 빠름, DB 부하 없음
 - 단점: 숫자만 남음. "누가 언제 로그인했는지" 이력 조회 불가. 인프라 의존성 추가 (Redis)
+  - 확장성 고려 시 "분석계" 측면에서는 부적절
 
 ### 2. UserEntity에 `lastLoginAt` 컬럼
 - 장점: 구현 가장 간단
@@ -27,11 +29,12 @@ DB 테이블 방식은 다음과 같은 확장이 가능하다:
 - 유저별 로그인 이력 조회
 - 비정상 로그인 패턴 탐지 (짧은 시간 내 다수 로그인 시도)
 - 보고서에 로그인 이력 포함
-- CDC(Change Data Capture)를 통한 이벤트 파이프라인 연결
+- Message Queue로 비동기로 로그인 로그 저장 가능
+- CDC를 통한 이벤트 파이프라인 연결 가능
 
 ## 현재 구현
 
-`AuthService.login()` 내에서 동기적으로 `LoginLogEntity`를 저장한다.
+`AuthService.login()` 내에서 동기적으로 `LoginLogEntity` 저장
 
 ```kotlin
 loginLogRepository.save(LoginLogEntity(user = user))
@@ -45,4 +48,4 @@ loginLogRepository.save(LoginLogEntity(user = user))
 2. **Kafka + CDC**: login_logs 테이블의 변경을 Kafka로 스트리밍하여 분석 파이프라인 연결
 3. **Redis 캐시 병행**: 실시간 카운터는 Redis, 이력은 DB에 유지하는 이중 전략
 
-현재 규모에서는 동기 INSERT + 인덱스 기반 COUNT 쿼리로 충분하며, 위 확장은 필요 시점에 도입한다.
+현재 규모에서는 동기 INSERT + 인덱스 기반 COUNT 쿼리로 충분하며, 위 확장은 필요 시점에 도입

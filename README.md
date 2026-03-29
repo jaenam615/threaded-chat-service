@@ -1,14 +1,19 @@
-# AI 챗봇 서비스 API
-
-VIP onboarding 팀을 위한 AI 챗봇 API 서비스입니다.
-
+# AI 챗봇 API 서비스
 ---
 
-## 1. 과제 분석
+## 1. 요구사항 분석
 
-### 핵심 요구사항 해석
+### 상황 해석
 
-이 과제는 단순한 LLM 연동이 아닌 **SaaS 백엔드 MVP 설계 능력**을 평가하는 과제로 해석했습니다.
+시나리오를 다음과 같이 해석했습니다:
+
+- **3시간 안에 시연 가능한 결과물** — 완벽한 제품이 아니라 납득 가능한 MVP
+- **영업/고객사와 연락 불가** — 요구사항을 직접 해석하고 우선순위를 스스로 판단해야 함
+- **"지속적으로 확장 개발 가능"** — 빠르게 만들되, 나중에 손대기 힘든 구조는 피해야 함
+
+이를 종합하면 이 과제는 LLM 연동 능력이 아니라 **제한된 시간 내에 올바른 설계 판단을 내리는 능력**을 평가한다고 판단했습니다.
+
+### 핵심 요구사항 분류
 
 - **인증/인가**: JWT 기반 사용자 인증 + RBAC (member/admin)
 - **데이터 모델링**: User -> Thread -> Chat -> Feedback 관계 설계
@@ -26,28 +31,29 @@ VIP onboarding 팀을 위한 AI 챗봇 API 서비스입니다.
 | P1 | 분석 및 보고 | 관리자 운영 기능 |
 | P2 | 스트리밍 | 시간 부족 시 생략 가능 |
 
+P0/P1을 먼저 완성하고, 남은 시간에 P2와 코드 품질 개선에 투자하는 전략을 택했습니다.
+
 ---
 
 ## 2. AI 활용
 
 ### 활용 방식
 
-- **보일러플레이트 생성**: Entity, Repository, DTO 등 반복적인 코드 생성
-- **설계 검증**: 아키텍처 구조 및 시간 배분 검토
-- **코드 리뷰**: N+1 쿼리 문제, FK 제약 위반 버그 등 사전 발견
-- **의사결정 논의**: 로그인 로그 저장 방식 (Redis vs DB) 등 트레이드오프 논의
+AI를 **코드 생성기가 아니라 시니어 동료**처럼 활용했습니다.
+
+- **보일러플레이트 가속**: Entity, Repository, DTO 등 반복적인 코드 생성을 맡기고, 직접 검토 후 통합
+- **코드 리뷰어**: 구현 후 AI에게 요구사항 대비 검토를 요청. 이 과정에서 N+1 쿼리, 스레드 삭제 시 FK 제약 위반 버그, `@Transactional` + 스트리밍 충돌 등을 사전에 발견
+- **설계 논의 상대**: 예를 들어 로그인 횟수 추적 방식을 고민할 때:
+  1. `lastLoginAt` 컬럼 → "횟수가 아니라 유저 수만 셀 수 있다"는 한계를 인지
+  2. Redis 카운터 → "숫자만 남아서 향후 이력 조회/CDC 확장이 불가"
+  3. `LoginLog` 테이블 → 정확한 횟수 + 확장성으로 채택
+  - 이런 과정에서 AI가 선택지를 제시하면, 요구사항과 확장성을 기준으로 직접 판단
 
 ### 어려웠던 점
 
-1. **Claude API 연동**: 초기 400 에러 발생 -> Content-Type 헤더 누락 및 retry 로직 문제
-2. **JWT 설정**: Spring Security 3.x의 변경된 설정 방식 적응
-3. **시간 관리**: 모든 기능 구현 욕심 vs MVP 집중 사이의 균형
-
-### AI 활용의 한계
-
-- 전체 코드 생성 요청 시 컨텍스트 누락으로 오류 발생
-- 작은 단위로 요청하고 직접 통합하는 방식이 효과적
-- 설계 의사결정은 AI가 제시한 선택지를 기반으로 직접 판단
+1. **AI 생성 코드의 맥락 누락**: 전체 기능을 한 번에 요청하면 파일 간 의존성이 맞지 않는 경우가 발생. 기능 단위로 쪼개서 요청하고 직접 통합하는 방식이 효과적이었음
+2. **설계 판단은 결국 사람의 몫**: AI가 "이렇게도 할 수 있고 저렇게도 할 수 있다"고 제시하지만, "이 과제에서 어떤 선택이 맞는가"는 상황(시간 제약, 확장성 요구사항)을 이해하는 사람이 결정해야 했음
+3. **시간 관리**: 모든 기능 구현 욕심 vs MVP 집중 사이의 균형. AI의 도움으로 구현 속도는 빨라졌지만, 그만큼 "더 할 수 있으니 더 하자"는 유혹을 관리해야 했음
 
 ---
 
@@ -68,7 +74,7 @@ private fun getOrCreateThread(userId: Long, user: UserEntity): ThreadEntity {
         if (latestChat != null) {
             val timeSinceLastChat = Duration.between(
                 latestChat.createdAt,
-                LocalDateTime.now()
+                OffsetDateTime.now()
             ).toMinutes()
 
             if (timeSinceLastChat < 30) {
@@ -116,41 +122,70 @@ val chatsByThreadId = allChats.groupBy { it.thread.id }
 
 > 상세 내용: [docs/LOGIN_LOG.md](docs/LOGIN_LOG.md)
 
+### 3.4 @Transactional + 스트리밍 충돌
+
+**문제**: `@Transactional` 메서드에서 `Flux`(스트리밍)를 반환하면, 메서드 리턴 시 트랜잭션이 닫히는데 실제 DB 저장은 스트리밍 완료 후(`doOnComplete`)에 일어남. 트랜잭션 컨텍스트 없이 DB 접근 시도.
+
+**해결**: `createChat()` 자체에서 `@Transactional`을 제거하고, DB 접근이 필요한 부분만 별도 `@Transactional` 메서드(`prepareChat()`, `saveChat()`)로 분리. 부수적으로 LLM 호출 중 DB 커넥션 점유 문제도 해결됨.
+
+> 상세 내용: [docs/STREAMING_DESIGN.md](docs/STREAMING_DESIGN.md)
+
+### 3.5 외부 API 장애 전파 방지
+
+**문제**: Claude API 장애 시 retry가 반복되면서 스레드/커넥션 점유 → 서비스 전체 장애로 확대 가능
+
+**해결**: Resilience4j Circuit Breaker를 적용하여 연속 실패 시 요청을 사전 차단하고 즉시 fallback 응답 반환.
+
+> 상세 내용: [docs/CIRCUIT_BREAKER.md](docs/CIRCUIT_BREAKER.md)
+
 ---
 
-## 4. 구현/생략 트레이드오프
+## 4. 설계 철학
+
+이 프로젝트에서 일관되게 지킨 원칙:
+
+- **구현량보다 설계 판단**: 기능을 하나 더 만드는 것보다, 만든 기능이 왜 이런 구조인지 설명할 수 있는 것을 우선시. 각 설계 의사결정은 [docs/](docs/) 디렉토리에 문서화
+- **적정 기술 선택**: Redis, Kafka, 멀티모듈 등 도입 가능한 기술을 검토했으나, 현재 규모에서 불필요한 복잡성으로 판단하여 생략. 대신 "언제 도입하면 좋은지"를 문서에 명시
+- **확장 가능한 단순함**: enum 기반 상태 관리, sealed class 패턴, LlmClient 인터페이스 등 — 코드가 단순하되 확장 포인트는 열어둔 구조
+
+---
+
+## 5. 구현/생략 트레이드오프
+
 
 ### 구현한 것
 
-| 기능 | 구현 내용 |
-|------|----------|
-| 회원가입/로그인 | BCrypt 암호화, JWT 발급 |
+| 기능        | 구현 내용 |
+|-----------|----------|
+| 회원가입/로그인  | BCrypt 암호화, JWT 발급 |
 | 관리자 계정 생성 | admin만 다른 admin 생성 가능 (`POST /api/auth/admin`) |
-| 대화 생성 | 30분 규칙, LLM 호출, 스레드 자동 관리 |
-| 모델 선택 | 요청 시 model 파라미터로 LLM 모델 지정 가능 |
-| 스트리밍 응답 | `isStreaming=true` 시 SSE(Server-Sent Events)로 실시간 응답 |
-| 대화 조회 | 페이지네이션, 정렬, 권한별 필터링, N+1 쿼리 해결 |
-| 스레드 삭제 | 본인 것만 삭제 가능, 연관 데이터(Feedback -> Chat) 순서 보장 |
-| 피드백 CRUD | 생성/조회/상태변경, 중복 방지, enum 기반 상태 관리 |
-| 관리자 기능 | 활동 통계 (로그인 횟수 포함), CSV 보고서 |
+| 대화 생성     | 30분 규칙, LLM 호출, 스레드 자동 관리 |
+| 모델 선택     | 요청 시 model 파라미터로 LLM 모델 지정 가능 |
+| 스트리밍 응답   | `isStreaming=true` 시 SSE(Server-Sent Events)로 실시간 응답 |
+| 대화 조회     | 페이지네이션, 정렬, 권한별 필터링, N+1 쿼리 해결 |
+| 스레드 삭제    | 본인 것만 삭제 가능, 연관 데이터(Feedback -> Chat) 순서 보장 |
+| 피드백 CRUD  | 생성/조회/상태변경, 중복 방지, enum 기반 상태 관리 |
+| 관리자 기능    | 활동 통계 (로그인 횟수 포함), CSV 보고서 |
+| 일부 단위 테스트 | ChatService (30분 규칙, 스트리밍 분기), FeedbackService (권한, 중복 방지, 상태 변경) |
 
 ### 생략한 것
 
-| 기능 | 생략 이유 | 확장 방향 |
-|------|----------|-----------|
-| 테스트 코드 | 시간 부족 | 서비스 레이어 단위 테스트 + API 통합 테스트 |
-| API 문서화 | 시간 부족 | SpringDoc OpenAPI (Swagger) |
+| 기능         | 생략 이유                       | 확장 방향 |
+|------------|-----------------------------|----------|
+| 통합 테스트     | 기능에 영향 없음                   | TestContainers + 실제 DB 기반 API 통합 테스트 |
+| 나머지 단위 테스트 | 시간 부족                       | |
+| API 문서화    | 사용자가 API Spec에 대한 깊은 이해는 없음 | SpringDoc OpenAPI (Swagger) |
 
 ### 시간이 더 있었다면
 
 - 로그인 로그를 Spring ApplicationEvent -> Kafka 비동기 처리로 전환
 - Redis 캐싱 (활동 통계 등 자주 조회되는 데이터)
-- 테스트 코드 작성
+- 통합 테스트 (TestContainers)
 - API 문서화 (Swagger/OpenAPI)
 
 ---
 
-## 5. 실행 방법
+## 6. 실행 방법
 
 ### 사전 요구사항
 
@@ -194,7 +229,7 @@ VALUES ('admin@example.com', '$2a$10$...', 'Admin', 'ADMIN', now());
 
 ---
 
-## 6. API 문서
+## 7. API 문서
 
 ### 인증
 
@@ -240,7 +275,7 @@ VALUES ('admin@example.com', '$2a$10$...', 'Admin', 'ADMIN', now());
 }
 ```
 
-> `model`: 생략 시 기본 모델 사용. `isStreaming`: 현재 미구현 (향후 SSE로 확장 예정)
+> `model`: 생략 시 기본 모델(`claude-sonnet-4-20250514`) 사용. `isStreaming`: `true` 시 SSE 스트리밍 응답
 
 **대화 목록 조회**
 ```
@@ -302,19 +337,20 @@ GET /api/feedbacks?isPositive=true&page=0&size=20&sort=createdAt,desc
 
 ---
 
-## 7. 기술 스택
+## 8. 기술 스택
 
 - **Language**: Kotlin 1.9.x
 - **Framework**: Spring Boot 3.x
 - **Database**: PostgreSQL 15.8
 - **Auth**: JWT (jjwt 0.12.x)
 - **LLM**: Claude API (Anthropic)
+- **Resilience**: Resilience4j (Circuit Breaker)
 - **Build**: Gradle 8.x
 - **Container**: Docker
 
 ---
 
-## 8. 프로젝트 구조
+## 9. 프로젝트 구조
 
 ```
 src/main/kotlin/com/example/threadedchatservice/
@@ -358,9 +394,9 @@ src/main/kotlin/com/example/threadedchatservice/
     └── LlmClient.kt
 
 docs/
-├── CIRCUIT_BREAKER.md                # Circuit Breaker 설계 및 장애 전파 방지
-├── LOGIN_LOG.md                      # 로그인 로그 설계 의사결정
-├── N+1_TROUBLESHOOTING.md            # N+1 쿼리 트러블슈팅
-├── STREAMING_DESIGN.md               # 스트리밍 응답 설계 및 sealed class 패턴
-└── TRANSACTIONAL_TROUBLESHOOTING.md  # @Transactional + Streaming 충돌 해결
+├── CIRCUIT_BREAKER.md       # Circuit Breaker 설계 및 장애 전파 방지
+├── DATA_INTEGRITY.md        # 데이터 정합성 (낙관적 락, unique 제약, 격리 수준)
+├── LOGIN_LOG.md             # 로그인 로그 설계 의사결정
+├── N+1_TROUBLESHOOTING.md   # N+1 쿼리 트러블슈팅
+└── STREAMING_DESIGN.md      # 스트리밍 설계 + @Transactional 충돌 해결
 ```

@@ -12,7 +12,8 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
-import java.time.LocalDateTime
+import jakarta.persistence.Version
+import java.time.OffsetDateTime
 
 @Entity
 @Table(
@@ -34,5 +35,7 @@ class FeedbackEntity(
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     var status: FeedbackStatus = FeedbackStatus.PENDING,
-    val createdAt: LocalDateTime = LocalDateTime.now(),
+    val createdAt: OffsetDateTime = OffsetDateTime.now(),
+    @Version
+    var version: Long = 0,
 )

@@ -25,7 +25,10 @@ class ClaudeClient(
     override fun call(prompt: String): String = call(listOf(mapOf("role" to "user", "content" to prompt)))
 
     @CircuitBreaker(name = "claudeApi", fallbackMethod = "callFallback")
-    fun call(messages: List<Map<String, String>>, model: String? = null): String {
+    fun call(
+        messages: List<Map<String, String>>,
+        model: String? = null,
+    ): String {
         val requestBody =
             mapOf(
                 "model" to (model ?: DEFAULT_MODEL),
@@ -43,7 +46,7 @@ class ClaudeClient(
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(Map::class.java)
-                .timeout(Duration.ofSeconds(30))
+                .timeout(Duration.ofSeconds(10))
                 .retryWhen(
                     Retry
                         .backoff(3, Duration.ofMillis(500))
@@ -57,7 +60,10 @@ class ClaudeClient(
     }
 
     @CircuitBreaker(name = "claudeApi", fallbackMethod = "callStreamFallback")
-    fun callStream(messages: List<Map<String, String>>, model: String? = null): Flux<String> {
+    fun callStream(
+        messages: List<Map<String, String>>,
+        model: String? = null,
+    ): Flux<String> {
         val requestBody =
             mapOf(
                 "model" to (model ?: DEFAULT_MODEL),
@@ -88,14 +94,18 @@ class ClaudeClient(
     }
 
     @Suppress("unused")
-    private fun callFallback(messages: List<Map<String, String>>, model: String?, e: Exception): String {
-        throw IllegalStateException("AI 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.", e)
-    }
+    private fun callFallback(
+        messages: List<Map<String, String>>,
+        model: String?,
+        e: Exception,
+    ): String = throw IllegalStateException("AI 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.", e)
 
     @Suppress("unused")
-    private fun callStreamFallback(messages: List<Map<String, String>>, model: String?, e: Exception): Flux<String> {
-        return Flux.error(IllegalStateException("AI 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.", e))
-    }
+    private fun callStreamFallback(
+        messages: List<Map<String, String>>,
+        model: String?,
+        e: Exception,
+    ): Flux<String> = Flux.error(IllegalStateException("AI 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.", e))
 
     private fun extractText(response: Map<*, *>?): String {
         if (response == null) return "응답 없음"
