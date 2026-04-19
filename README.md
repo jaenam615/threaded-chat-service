@@ -161,20 +161,6 @@ val chatsByThreadId = allChats.groupBy { it.thread.id }
 | 관리자 기능    | 활동 통계 (로그인 횟수 포함), CSV 보고서 |
 | 일부 단위 테스트 | ChatService (30분 규칙, 스트리밍 분기), FeedbackService (권한, 중복 방지, 상태 변경) |
 
-### 생략한 것
-
-| 기능         | 생략 이유                       | 확장 방향 |
-|------------|-----------------------------|----------|
-| 통합 테스트     | 기능에 영향 없음                   | TestContainers + 실제 DB 기반 API 통합 테스트 |
-| 나머지 단위 테스트 | 시간 부족                       | |
-| API 문서화    | 사용자가 API Spec에 대한 깊은 이해는 없음 | SpringDoc OpenAPI (Swagger) |
-
-### 시간이 더 있었다면
-
-- 로그인 로그를 Spring ApplicationEvent -> Kafka 비동기 처리로 전환
-- Redis 캐싱 (활동 통계 등 자주 조회되는 데이터)
-- 통합 테스트 (TestContainers)
-- API 문서화 (Swagger/OpenAPI)
 
 ---
 
